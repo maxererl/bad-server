@@ -1,3 +1,4 @@
+import rateLimit from 'express-rate-limit'
 import csurf from 'csurf'
 import { Router } from 'express'
 import {
@@ -13,6 +14,14 @@ import auth from '../middlewares/auth'
 
 const authRouter = Router()
 
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 минут
+  max: 100, // максимум 100 запросов с IP
+  message: 'Too many requests, try again later',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 const csrfProtection = csurf({ cookie: true });
 
 authRouter.get('/csrf-token', csrfProtection, (req, res) => {
@@ -20,11 +29,11 @@ authRouter.get('/csrf-token', csrfProtection, (req, res) => {
 });
 
 authRouter.get('/user', auth, getCurrentUser)
-authRouter.patch('/me', auth, csrfProtection, updateCurrentUser)
+authRouter.patch('/me', limiter, auth, csrfProtection, updateCurrentUser)
 authRouter.get('/user/roles', auth, getCurrentUserRoles)
-authRouter.post('/login', csrfProtection, login)
+authRouter.post('/login', limiter, csrfProtection, login)
 authRouter.get('/token', refreshAccessToken)
 authRouter.get('/logout', logout)
-authRouter.post('/register', csrfProtection, register)
+authRouter.post('/register', limiter, csrfProtection, register)
 
 export default authRouter

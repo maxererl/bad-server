@@ -1,3 +1,4 @@
+import rateLimit from 'express-rate-limit'
 import { Router } from 'express'
 import {
     createOrder,
@@ -14,8 +15,16 @@ import { Role } from '../models/user'
 
 const orderRouter = Router()
 
-orderRouter.post('/', auth, validateOrderBody, createOrder)
-orderRouter.get('/all', auth, getOrders)
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 минут
+  max: 100, // максимум 100 запросов с IP
+  message: 'Too many requests, try again later',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+orderRouter.post('/', limiter, auth, validateOrderBody, createOrder)
+orderRouter.get('/all', limiter, auth, getOrders)
 orderRouter.get('/all/me', auth, getOrdersCurrentUser)
 orderRouter.get(
     '/:orderNumber',

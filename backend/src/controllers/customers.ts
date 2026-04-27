@@ -114,10 +114,12 @@ export const getCustomers = async (
             sort[sortField as string] = sortOrder === 'desc' ? -1 : 1
         }
 
+        const maxLimit = Number(limit) > 10 ? 10 : Number(limit);
+
         const options = {
             sort,
-            skip: (Number(page) - 1) * Number(limit),
-            limit: Number(limit),
+            skip: (Number(page) - 1) * maxLimit,
+            limit: maxLimit,
         }
 
         const users = await User.find(filters, null, options).populate([
@@ -137,7 +139,7 @@ export const getCustomers = async (
         ])
 
         const totalUsers = await User.countDocuments(filters)
-        const totalPages = Math.ceil(totalUsers / Number(limit))
+        const totalPages = Math.ceil(totalUsers / maxLimit)
 
         res.status(200).json({
             customers: users,
@@ -145,7 +147,7 @@ export const getCustomers = async (
                 totalUsers,
                 totalPages,
                 currentPage: Number(page),
-                pageSize: Number(limit),
+                pageSize: maxLimit,
             },
         })
     } catch (error) {
