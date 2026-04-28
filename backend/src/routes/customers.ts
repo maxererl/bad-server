@@ -12,7 +12,7 @@ const customerRouter = Router()
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 минут
-  max: 100, // максимум 100 запросов с IP
+  max: 25, // максимум 25 запросов с IP
   message: 'Too many requests, try again later',
   standardHeaders: true,
   legacyHeaders: false,
