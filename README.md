@@ -1,4 +1,6 @@
-# Проектная работа "WebLarek. Плохой сервер.", спринт 17
+# Проектная работа "WebLarek. Плохой сервер.", спринт 18
+
+Колпаков Максим fullstack-developer_cohort_42 (fullstack-developer-plus_cohort_08)
 
 ## Ссылка на репозиторий
 https://github.com/maxererl/bad-server

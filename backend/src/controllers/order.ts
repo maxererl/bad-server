@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from 'express'
 import { FilterQuery, Error as MongooseError, Types } from 'mongoose'
+import sanitizeHtml from 'sanitize-html';
 import BadRequestError from '../errors/bad-request-error'
 import NotFoundError from '../errors/not-found-error'
 import Order, { IOrder } from '../models/order'
@@ -32,7 +33,7 @@ export const getOrders = async (
 
         if (status) {
             if (typeof status === 'object') {
-                Object.assign(filters, status)
+                throw new BadRequestError('Параметр status должен быть строкой')
             }
             if (typeof status === 'string') {
                 filters.status = status
@@ -114,10 +115,12 @@ export const getOrders = async (
             sort[sortField as string] = sortOrder === 'desc' ? -1 : 1
         }
 
+        const maxLimit = Number(limit) > 10 ? 10 : Number(limit);
+
         aggregatePipeline.push(
             { $sort: sort },
-            { $skip: (Number(page) - 1) * Number(limit) },
-            { $limit: Number(limit) },
+            { $skip: (Number(page) - 1) * maxLimit },
+            { $limit: maxLimit },
             {
                 $group: {
                     _id: '$_id',
@@ -133,7 +136,7 @@ export const getOrders = async (
 
         const orders = await Order.aggregate(aggregatePipeline)
         const totalOrders = await Order.countDocuments(filters)
-        const totalPages = Math.ceil(totalOrders / Number(limit))
+        const totalPages = Math.ceil(totalOrders / maxLimit)
 
         res.status(200).json({
             orders,
@@ -141,7 +144,7 @@ export const getOrders = async (
                 totalOrders,
                 totalPages,
                 currentPage: Number(page),
-                pageSize: Number(limit),
+                pageSize: maxLimit,
             },
         })
     } catch (error) {
@@ -309,13 +312,17 @@ export const createOrder = async (
             return next(new BadRequestError('Неверная сумма заказа'))
         }
 
+        const sanitizedComment = sanitizeHtml(comment, {
+            allowedTags: [],
+        });
+
         const newOrder = new Order({
             totalAmount: total,
             products: items,
             payment,
             phone,
             email,
-            comment,
+            comment: sanitizedComment,
             customer: userId,
             deliveryAddress: address,
         })
