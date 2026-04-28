@@ -1,38 +1,10 @@
 import { Request, Express } from 'express'
-import multer, { FileFilterCallback } from 'multer'
-import { mkdirSync } from 'fs'
+import multer, { FileFilterCallback, StorageEngine } from 'multer'
+import { mkdirSync, unlinkSync } from 'fs'
+import { writeFile } from 'fs/promises'
 import path, { join } from 'path'
 import { randomUUID } from 'crypto'
-
-type DestinationCallback = (error: Error | null, destination: string) => void
-type FileNameCallback = (error: Error | null, filename: string) => void
-
-const storage = multer.diskStorage({
-    destination: (
-        _req: Request,
-        _file: Express.Multer.File,
-        cb: DestinationCallback
-    ) => {
-        const destinationPath = join(
-            __dirname,
-            process.env.UPLOAD_PATH_TEMP
-                ? `../public/${process.env.UPLOAD_PATH_TEMP}`
-                : '../public'
-        )
-
-        mkdirSync(destinationPath, { recursive: true })
-
-        cb(null, destinationPath)
-    },
-
-    filename: (
-        _req: Request,
-        file: Express.Multer.File,
-        cb: FileNameCallback
-    ) => {
-        cb(null, randomUUID() + path.extname(file.originalname))
-    },
-})
+import BadRequestError from '../errors/bad-request-error'
 
 const types = [
     'image/png',
@@ -42,27 +14,56 @@ const types = [
     'image/svg+xml',
 ]
 
-const fileFilter = async (
-    req: Request,
+const fileFilter = (
+    _req: Request,
     file: Express.Multer.File,
     cb: FileFilterCallback
 ) => {
-    if (!types.includes(file.mimetype)) {
-        return cb(null, false)
-    }
+    cb(null, types.includes(file.mimetype))
+}
 
-    const fileSize = Number(req.headers['content-length']);
-    if (Number.isNaN(fileSize) || fileSize < 2048 || fileSize > 10485760) {
-        return cb(null, false);
-    }
+const storage: StorageEngine = {
+    async _handleFile(_req, file, cb) {
+        const destination = join(
+            __dirname,
+            process.env.UPLOAD_PATH_TEMP
+                ? `../public/${process.env.UPLOAD_PATH_TEMP}`
+                : '../public'
+        )
+        mkdirSync(destination, { recursive: true })
 
-    const { fileTypeFromBuffer } = await import('file-type');
-    const type = await fileTypeFromBuffer(new Uint8Array(file.buffer.buffer));
-    if (!type || !types.includes(type.mime)) {
-        return cb(null, false);
-    }
+        const chunks: Buffer[] = []
+        file.stream.on('data', (chunk: Buffer) => chunks.push(chunk))
+        file.stream.on('error', cb)
+        file.stream.on('end', async () => {
+            try {
+                const buffer = Buffer.concat(chunks)
 
-    return cb(null, true)
+                if (buffer.length < 2048 || buffer.length > 10485760) {
+                    return cb(new BadRequestError('Invalid file size'))
+                }
+
+                const { fileTypeFromBuffer } = await import('file-type')
+                const type = await fileTypeFromBuffer(buffer)
+                if (!type || !types.includes(type.mime)) {
+                    return cb(new BadRequestError('Invalid file type'))
+                }
+
+                const filename = randomUUID() + path.extname(file.originalname)
+                const filePath = join(destination, filename)
+                await writeFile(filePath, buffer)
+
+                return cb(null, { destination, filename, path: filePath, size: buffer.length })
+            } catch (err) {
+                return cb(err as Error)
+            }
+        })
+    },
+
+    _removeFile(_req, file, cb) {
+        unlinkSync(file.path)
+        cb(null)
+    },
 }
 
 export default multer({ storage, fileFilter })
