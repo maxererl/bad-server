@@ -23,8 +23,18 @@ const limiter = rateLimit({
   legacyHeaders: false,
 });
 
-orderRouter.post('/', limiter, auth, validateOrderBody, createOrder)
-orderRouter.get('/all', limiter, auth, getOrders)
+orderRouter.post('/',
+    limiter,
+    auth,
+    validateOrderBody,
+    createOrder
+)
+orderRouter.get('/all',
+    limiter,
+    auth,
+    roleGuardMiddleware(Role.Admin),
+    getOrders
+)
 orderRouter.get('/all/me', auth, getOrdersCurrentUser)
 orderRouter.get(
     '/:orderNumber',
